@@ -1,0 +1,58 @@
+pipeline {
+    agent {label 'ubuntu'}
+
+    environment {
+        // Git
+        GIT_URL    = 'https://github.com/Sushmaa123/Barista_cafe.git'
+        GIT_BRANCH = 'master'
+
+        // Image
+        IMAGE_NAME = 'barista'
+
+        // Report
+        IMG_REPORT  = 'trivy-image.html'
+        TRIVY_IMAGE = 'aquasec/trivy:latest'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: "${GIT_BRANCH}", url: "${GIT_URL}"
+            }
+        }
+
+        stage('Build Image') {
+            steps {
+                script {
+                    sh '''cd frontend
+                    docker build -t ${IMAGE_NAME} .'''
+                }
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                script {
+                    sh """
+                    docker run --rm \
+                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      -v \$(pwd):/workspace \
+                      ${TRIVY_IMAGE} image \
+                      --timeout 30m \
+                      --format template \
+                      --template "@/contrib/html.tpl" \
+                      -o /workspace/${IMG_REPORT} \
+                      ${IMAGE_NAME}
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: "${IMG_REPORT}", allowEmptyArchive: false
+        }
+    }
+}
