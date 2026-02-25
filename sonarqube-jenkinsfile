@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+
+    environment {
+        SONAR_TOKEN = credentials('sonarqube')   // Jenkins credential ID
+        SONAR_HOST  = 'http://52.91.47.188:9000'
+        PROJECT_KEY = 'Barista_cafe'
+        PROJECT_NAME = 'Barista_cafe'
+        GIT_URL = 'https://github.com/Sushmaa123/Barista_cafe.git'
+        GIT_BRANCH = 'master'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: "${GIT_BRANCH}", url: "${GIT_URL}"
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    withSonarQubeEnv('sonarqube') {
+                        def scannerHome = tool 'sonar-scanner'
+
+                        sh """
+                        ${scannerHome}/bin/sonar-scanner \
+                          -Dsonar.projectKey=${PROJECT_KEY} \
+                          -Dsonar.projectName="${PROJECT_NAME}" \
+                          -Dsonar.sources=. \
+                          -Dsonar.host.url=${SONAR_HOST} \
+                          -Dsonar.login=${SONAR_TOKEN}
+                        """
+                    }
+                }
+            }
+        }
+    }
+}
