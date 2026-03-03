@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         ZAP_REPORT_PATH = 'Zap-Report.html'
-        TARGET_URL = 'http://52.91.47.188:80'   // Replace with your AWS Public IP
+        TARGET_URL = 'http://98.90.217.73:80'   // Replace with your AWS Public IP
     }
 
     stages {
