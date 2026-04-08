@@ -7,11 +7,16 @@ pipeline {
         GIT_BRANCH = 'master'
 
         // Docker
-        IMAGE_NAME      = 'barista'
         DOCKERHUB_REPO  = 'sushmaagowdaa/barista'
-        IMAGE_TAG       = "1.0"
+        IMAGE_TAG       = "${BUILD_NUMBER}"
 
-        // Report
+        // Kubernetes
+        APP_NAMESPACE       = 'default'
+        INGRESS_NAMESPACE   = 'ingress-nginx'   // change if different
+        DEPLOYMENT_NAME     = 'barista'
+        CONTAINER_NAME      = 'barista'
+
+        // Reports
         IMG_REPORT  = 'trivy-image.html'
         TRIVY_IMAGE = 'aquasec/trivy:latest'
     }
@@ -26,54 +31,111 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                script {
-                    sh """
-                    docker build -t ${DOCKERHUB_REPO}:${IMAGE_TAG} .
-                    """
-                }
+                sh "docker build -t ${DOCKERHUB_REPO}:${IMAGE_TAG} ."
             }
         }
 
-        stage('Trivy Image Scan') {
+        stage('Trivy Scan') {
             steps {
-                script {
-                    sh """
-                    docker run --rm \
-                      -v /var/run/docker.sock:/var/run/docker.sock \
-                      -v \$(pwd):/workspace \
-                      ${TRIVY_IMAGE} image \
-                      --timeout 30m \
-                      --format template \
-                      --template "@/contrib/html.tpl" \
-                      -o /workspace/${IMG_REPORT} \
-                      ${DOCKERHUB_REPO}:${IMAGE_TAG}
-                    """
-                }
+                sh """
+                docker run --rm \
+                  -v /var/run/docker.sock:/var/run/docker.sock \
+                  -v \$(pwd):/workspace \
+                  ${TRIVY_IMAGE} image \
+                  --timeout 30m \
+                  --format template \
+                  --template "@/contrib/html.tpl" \
+                  -o /workspace/${IMG_REPORT} \
+                  ${DOCKERHUB_REPO}:${IMAGE_TAG}
+                """
             }
         }
 
-        // 🚀 Docker Push Stage (Added)
         stage('Docker Login & Push') {
             steps {
-                script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub-cred',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        sh """
-                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                        docker push ${DOCKERHUB_REPO}:${IMAGE_TAG}
-                        """
-                    }
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-cred',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                    echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                    docker push ${DOCKERHUB_REPO}:${IMAGE_TAG}
+                    docker tag ${DOCKERHUB_REPO}:${IMAGE_TAG} ${DOCKERHUB_REPO}:latest
+                    docker push ${DOCKERHUB_REPO}:latest
+                    """
                 }
+            }
+        }
+
+        // 🚀 Deploy App Resources
+        stage('Deploy App (Deployment + Service + HPA)') {
+            steps {
+                sh """
+                kubectl get nodes
+
+                # Update image if deployment exists
+                kubectl set image deployment/${DEPLOYMENT_NAME} \
+                ${CONTAINER_NAME}=${DOCKERHUB_REPO}:${IMAGE_TAG} \
+                -n ${APP_NAMESPACE} || \
+
+                # First time deployment
+                kubectl apply -f deployment.yaml
+
+                kubectl apply -f service.yaml
+                kubectl apply -f hpa.yaml
+                """
+            }
+        }
+
+        // 🚀 Deploy Ingress (Different Namespace)
+        stage('Deploy Ingress') {
+            steps {
+                sh """
+                kubectl apply -f ingress.yaml -n ${INGRESS_NAMESPACE}
+                """
+            }
+        }
+
+        // 🚀 Verify Everything
+        stage('Verify Deployment') {
+            steps {
+                sh """
+                kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${APP_NAMESPACE}
+
+                echo "---- Pods ----"
+                kubectl get pods -n ${APP_NAMESPACE}
+
+                echo "---- Services ----"
+                kubectl get svc -n ${APP_NAMESPACE}
+
+                echo "---- HPA ----"
+                kubectl get hpa -n ${APP_NAMESPACE}
+
+                echo "---- Ingress ----"
+                kubectl get ingress -n ${INGRESS_NAMESPACE}
+                """
             }
         }
     }
 
     post {
+
+        success {
+            echo "✅ Application deployed successfully with Ingress + HPA"
+        }
+
+        failure {
+            echo "❌ Deployment failed → Rolling back"
+
+            sh """
+            kubectl rollout undo deployment/${DEPLOYMENT_NAME} -n ${APP_NAMESPACE} || true
+            """
+        }
+
         always {
             archiveArtifacts artifacts: "${IMG_REPORT}", allowEmptyArchive: false
+            sh "docker logout || true"
         }
     }
 }
