@@ -18,7 +18,7 @@ pipeline {
 
         // Reports
         IMG_REPORT  = 'trivy-image.html'
-        TRIVY_IMAGE = 'aquasecurity/trivy:latest'
+        TRIVY_IMAGE = 'aquasec/trivy:latest'
     }
 
     stages {
@@ -80,10 +80,10 @@ pipeline {
                 -n ${APP_NAMESPACE} || \
 
                 # First time deployment
-                kubectl apply -f deployment.yaml
+                kubectl apply -f deployment.yml
 
-                kubectl apply -f service.yaml
-                kubectl apply -f hpa.yaml
+                kubectl apply -f service.yml
+                kubectl apply -f hpa.yml
                 """
             }
         }
@@ -92,7 +92,7 @@ pipeline {
         stage('Deploy Ingress') {
             steps {
                 sh """
-                kubectl apply -f ingress.yaml -n ${INGRESS_NAMESPACE}
+                kubectl apply -f ingress.yml -n ${INGRESS_NAMESPACE}
                 """
             }
         }
