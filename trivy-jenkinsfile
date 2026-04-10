@@ -18,7 +18,7 @@ pipeline {
 
         // Reports
         IMG_REPORT  = 'trivy-image.html'
-        TRIVY_IMAGE = 'aquasec/trivy:latest'
+        TRIVY_IMAGE = 'aquasec/trivy:0.50.1'
     }
 
     stages {
