@@ -2,20 +2,14 @@ pipeline {
     agent { label 'ubuntu' }
 
     environment {
-        // Git
         GIT_URL    = 'https://github.com/Sushmaa123/Barista_cafe.git'
         GIT_BRANCH = 'master'
 
-        // Docker
         DOCKERHUB_REPO  = 'sushmaagowdaa/barista'
         IMAGE_TAG       = "${BUILD_NUMBER}"
 
-        // Kubernetes
         APP_NAMESPACE   = 'default'
-        DEPLOYMENT_NAME = 'barista-deployment'
-        CONTAINER_NAME  = 'barista'
 
-        // Reports
         IMG_REPORT  = 'trivy-image.html'
         TRIVY_IMAGE = 'aquasec/trivy:0.50.1'
     }
@@ -67,7 +61,7 @@ pipeline {
             }
         }
 
-        // 🔥 FIXED DEPLOYMENT STAGE
+        // 🔥 CLEAN DEPLOYMENT (NO set image)
         stage('Deploy App (K8s)') {
             steps {
                 sh """
@@ -76,19 +70,16 @@ pipeline {
                 echo "🔍 Checking cluster..."
                 kubectl get nodes
 
-                echo "📂 Verifying manifest files..."
+                echo "📂 Checking manifests..."
                 ls -l kubernetes/
 
-                echo "🚀 Applying all manifests from kubernetes folder..."
+                echo "🔄 Updating image in deployment.yaml..."
+                sed -i 's|image: .*|image: ${DOCKERHUB_REPO}:${IMAGE_TAG}|g' kubernetes/deployment.yml
+
+                echo "🚀 Applying manifests..."
                 kubectl apply -f kubernetes/
 
-                echo "🔄 Updating image..."
-                kubectl set image deployment/${DEPLOYMENT_NAME} \
-                ${CONTAINER_NAME}=${DOCKERHUB_REPO}:${IMAGE_TAG} \
-                -n ${APP_NAMESPACE}
-
-                echo "⏳ Waiting for rollout..."
-                kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${APP_NAMESPACE}
+                echo "✅ Deployment applied"
                 """
             }
         }
@@ -115,15 +106,11 @@ pipeline {
     post {
 
         success {
-            echo "✅ Application deployed successfully with Ingress + HPA"
+            echo "✅ Application deployed successfully"
         }
 
         failure {
-            echo "❌ Deployment failed → Rolling back"
-
-            sh """
-            kubectl rollout undo deployment/${DEPLOYMENT_NAME} -n ${APP_NAMESPACE} || true
-            """
+            echo "❌ Deployment failed"
         }
 
         always {
