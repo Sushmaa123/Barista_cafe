@@ -22,23 +22,18 @@ pipeline {
 
     stages {
 
-        // 🔹 Checkout Code
         stage('Checkout') {
             steps {
                 git branch: "${GIT_BRANCH}", url: "${GIT_URL}"
             }
         }
 
-        // 🔹 Build Docker Image
         stage('Build Image') {
             steps {
-                sh """
-                docker build -t ${DOCKERHUB_REPO}:${IMAGE_TAG} .
-                """
+                sh "docker build -t ${DOCKERHUB_REPO}:${IMAGE_TAG} ."
             }
         }
 
-        // 🔹 Trivy Scan
         stage('Trivy Scan') {
             steps {
                 sh """
@@ -55,7 +50,6 @@ pipeline {
             }
         }
 
-        // 🔹 Push to DockerHub
         stage('Docker Login & Push') {
             steps {
                 withCredentials([usernamePassword(
@@ -73,7 +67,7 @@ pipeline {
             }
         }
 
-        // 🔹 Deploy to Kubernetes
+        // 🔥 FIXED DEPLOYMENT STAGE
         stage('Deploy App (K8s)') {
             steps {
                 sh """
@@ -82,14 +76,11 @@ pipeline {
                 echo "🔍 Checking cluster..."
                 kubectl get nodes
 
-                echo "📂 Checking files..."
-                ls -l
+                echo "📂 Verifying manifest files..."
+                ls -l kubernetes/
 
-                echo "🚀 Applying Kubernetes manifests..."
-                kubectl apply -f deployment.yml
-                kubectl apply -f service.yml
-                kubectl apply -f hpa.yml
-                kubectl apply -f ingress.yml
+                echo "🚀 Applying all manifests from kubernetes folder..."
+                kubectl apply -f kubernetes/
 
                 echo "🔄 Updating image..."
                 kubectl set image deployment/${DEPLOYMENT_NAME} \
@@ -102,7 +93,6 @@ pipeline {
             }
         }
 
-        // 🔹 Verify Deployment
         stage('Verify Deployment') {
             steps {
                 sh """
