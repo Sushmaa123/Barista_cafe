@@ -12,7 +12,6 @@ pipeline {
 
         // Kubernetes
         APP_NAMESPACE       = 'default'
-        INGRESS_NAMESPACE   = 'ingress-nginx'   // change if different
         DEPLOYMENT_NAME     = 'barista'
         CONTAINER_NAME      = 'barista'
 
@@ -84,20 +83,12 @@ pipeline {
 
                 kubectl apply -f service.yml
                 kubectl apply -f hpa.yml
+                kubectl apply -f ingress.yml
                 """
             }
         }
 
-        // 🚀 Deploy Ingress (Different Namespace)
-        stage('Deploy Ingress') {
-            steps {
-                sh """
-                kubectl apply -f ingress.yml -n ${INGRESS_NAMESPACE}
-                """
-            }
-        }
-
-        // 🚀 Verify Everything
+         // 🚀 Verify Everything
         stage('Verify Deployment') {
             steps {
                 sh """
@@ -113,7 +104,7 @@ pipeline {
                 kubectl get hpa -n ${APP_NAMESPACE}
 
                 echo "---- Ingress ----"
-                kubectl get ingress -n ${INGRESS_NAMESPACE}
+                kubectl get ingress -n ${APP_NAMESPACE}
                 """
             }
         }
