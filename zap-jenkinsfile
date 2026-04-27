@@ -1,9 +1,9 @@
 pipeline {
-    agent {label 'ubuntu'}
+    agent { label 'ubuntu' }
 
     environment {
         ZAP_REPORT_PATH = 'Zap-Report.html'
-        TARGET_URL = 'https://cloudops.live'   // Replace with your AWS Public IP
+        TARGET_URL = 'https://cloudops.live'
     }
 
     stages {
@@ -14,8 +14,10 @@ pipeline {
 
                     sh """
                     docker run --rm \
+                      -u \$(id -u):\$(id -g) \
                       -v \$(pwd):/zap/wrk/:rw \
-                      -t ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
+                      ghcr.io/zaproxy/zaproxy:stable \
+                      zap-full-scan.py \
                       -t ${TARGET_URL} \
                       -g gen.conf \
                       -r ${ZAP_REPORT_PATH}
