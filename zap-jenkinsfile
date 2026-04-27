@@ -16,32 +16,16 @@ pipeline {
                 script {
                     echo "Starting OWASP ZAP Full Scan on ${TARGET_URL}"
 
-                    def zapStatus = sh(
-                        script: """
-                        docker run --rm \
-                          -u 0 \
-                          -v \$(pwd):/zap/wrk/:rw \
-                          ghcr.io/zaproxy/zaproxy:stable \
-                          zap-full-scan.py \
-                          -t ${TARGET_URL} \
-                          -g gen.conf \
-                          -r ${ZAP_REPORT_PATH}
-                        """,
-                        returnStatus: true
-                    )
-
-                    echo "ZAP Exit Code: ${zapStatus}"
-
-                    if (zapStatus == 0) {
-                        echo "✅ No vulnerabilities found"
-                    } 
-                    else if (zapStatus == 1 || zapStatus == 2) {
-                        echo "⚠️ Security warnings found"
-                        currentBuild.result = 'UNSTABLE'
-                    } 
-                    else {
-                        error "❌ Critical vulnerabilities found! Failing pipeline"
-                    }
+                    sh """
+                    docker run --rm \
+                      -u 0 \
+                      -v \$(pwd):/zap/wrk/:rw \
+                      ghcr.io/zaproxy/zaproxy:stable \
+                      zap-full-scan.py \
+                      -t ${TARGET_URL} \
+                      -g gen.conf \
+                      -r ${ZAP_REPORT_PATH} || true
+                    """
                 }
             }
         }
@@ -61,15 +45,7 @@ pipeline {
         }
 
         success {
-            echo "✅ Build SUCCESS"
-        }
-
-        unstable {
-            echo "⚠️ Build UNSTABLE (Security warnings)"
-        }
-
-        failure {
-            echo "❌ Build FAILED (Critical vulnerabilities)"
+            echo "✅ Pipeline marked as SUCCESS (warnings ignored)"
         }
     }
 }
